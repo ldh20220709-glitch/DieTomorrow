@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NEON BUNKER — 单文件 FPS</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#000;font-family:"PingFang SC","Microsoft YaHei",Menlo,monospace;user-select:none}
+  canvas#gl{display:block;width:100%;height:100%}
+  #hud{position:fixed;inset:0;pointer-events:none;color:#dfe8ff;text-shadow:0 0 6px rgba(0,200,255,.6)}
+  #cross{position:absolute;left:50%;top:50%;width:22px;height:22px;transform:translate(-50%,-50%)}
+  #cross i{position:absolute;background:#7ff;box-shadow:0 0 4px #0ff}
+  #cross i:nth-child(1){left:10px;top:0;width:2px;height:7px}
+  #cross i:nth-child(2){left:10px;bottom:0;width:2px;height:7px}
+  #cross i:nth-child(3){top:10px;left:0;height:2px;width:7px}
+  #cross i:nth-child(4){top:10px;right:0;height:2px;width:7px}
+  #hit{position:absolute;left:50%;top:50%;width:30px;height:30px;transform:translate(-50%,-50%) rotate(45deg);border:2px solid #ff4;opacity:0;transition:opacity .08s}
+  #vig{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 55%,rgba(0,0,0,.55) 100%)}
+  #dmg{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(255,0,0,0) 40%,rgba(255,0,0,.75) 100%);opacity:0;transition:opacity .1s}
+  .panel{position:absolute;background:rgba(5,12,30,.55);border:1px solid rgba(0,220,255,.35);border-radius:6px;padding:8px 12px;backdrop-filter:blur(2px)}
+  #hp{left:20px;bottom:20px;width:260px}
+  #hp .bar{height:12px;background:#222;border-radius:3px;overflow:hidden;margin-top:4px}
+  #hp .bar b{display:block;height:100%;width:100%;background:linear-gradient(90deg,#e33,#f84);transition:width .15s}
+  #ammo{right:20px;bottom:20px;text-align:right}
+  #ammo b{font-size:40px;line-height:40px;color:#fff}
+  #ammo small{color:#9bd}
+  #top{left:20px;top:20px;font-size:14px;line-height:1.7}
+  #top b{color:#fff;font-size:18px}
+  #map{position:absolute;right:20px;top:20px;width:160px;height:160px;border:1px solid rgba(0,220,255,.35);border-radius:6px;background:rgba(5,12,30,.55)}
+  #msg{position:absolute;left:50%;top:28%;transform:translateX(-50%);font-size:36px;font-weight:bold;color:#fff;letter-spacing:4px;opacity:0;transition:opacity .4s;text-shadow:0 0 18px #0ff,0 0 4px #fff}
+  #sub{position:absolute;left:50%;top:60%;transform:translateX(-50%);font-size:16px;color:#ff9;opacity:0;transition:opacity .3s}
+  #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,4,14,.86);color:#dfe8ff;cursor:pointer;z-index:10}
+  #overlay .box{max-width:560px;text-align:center;padding:36px 44px;border:1px solid rgba(0,220,255,.4);border-radius:12px;background:rgba(5,12,30,.7);box-shadow:0 0 40px rgba(0,200,255,.25)}
+  #overlay h1{margin:0 0 6px;font-size:44px;letter-spacing:6px;color:#fff;text-shadow:0 0 20px #0ff}
+  #overlay h2{margin:0 0 18px;font-size:14px;color:#8cf;font-weight:normal;letter-spacing:2px}
+  #overlay p{margin:6px 0;font-size:15px;color:#bcd;line-height:1.7}
+  #overlay kbd{display:inline-block;min-width:16px;padding:1px 6px;border:1px solid #6ad;border-radius:4px;background:#123;color:#fff;font-size:13px}
+  #overlay .go{margin-top:20px;font-size:18px;color:#ff9;animation:blink 1.2s infinite}
+  #overlay .stat{font-size:22px;color:#fff;margin:12px 0}
+  @keyframes blink{50%{opacity:.35}}
+  #fps{position:absolute;left:50%;top:8px;transform:translateX(-50%);font-size:11px;color:#6ad;opacity:.7}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="hud">
+  <div id="vig"></div><div id="dmg"></div>
+  <div id="cross"><i></i><i></i><i></i><i></i></div><div id="hit"></div>
+  <div class="panel" id="top">第 <b id="wave">1</b> 波 &nbsp;|&nbsp; 分数 <b id="score">0</b><br>敌人 <b id="alive">0</b> &nbsp;|&nbsp; 击杀 <b id="kills">0</b></div>
+  <canvas id="map" width="160" height="160"></canvas>
+  <div class="panel" id="hp">生命 <span id="hpv">100</span><div class="bar"><b id="hpb"></b></div></div>
+  <div class="panel" id="ammo"><b id="mag">12</b> <small>/ ∞</small><br><small id="reload">R 换弹</small></div>
+  <div id="msg"></div><div id="sub"></div>
+  <div id="fps"></div>
+</div>
+<div id="overlay"><div class="box" id="obox">
+  <h1>NEON BUNKER</h1>
+  <h2>SINGLE-FILE FPS · 零外部资源 · 贴图/音效全程序化生成</h2>
+  <p><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 移动 &nbsp; <kbd>Shift</kbd> 冲刺 &nbsp; <kbd>空格</kbd> 跳跃</p>
+  <p>鼠标 瞄准 &nbsp; 左键 射击 &nbsp; <kbd>R</kbd> 换弹 &nbsp; <kbd>Esc</kbd> 暂停</p>
+  <p>消灭每一波敌人，拾取医疗包回血。爆头伤害翻倍。</p>
+  <div class="go">点击任意位置开始</div>
+</div></div>
+<script>
